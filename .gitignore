@@ -1,0 +1,72 @@
+# ── Maven ──────────────────────────────────────────────────────────────────────
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+# Keep the wrapper JAR out of the repo; maven-wrapper.properties is enough
+.mvn/wrapper/maven-wrapper.jar
+
+# ── Java / compiled output ─────────────────────────────────────────────────────
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+# ── IDE – IntelliJ IDEA ────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ── IDE – Eclipse ──────────────────────────────────────────────────────────────
+.classpath
+.project
+.settings/
+.factorypath
+bin/
+
+# ── IDE – VS Code ─────────────────────────────────────────────────────────────
+.vscode/
+
+# ── IDE – NetBeans ────────────────────────────────────────────────────────────
+nbactions.xml
+nb-configuration.xml
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Local override files – keep the committed compose files clean
+docker-compose.override.yml
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── OS artefacts ──────────────────────────────────────────────────────────────
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.nfs*
+
+# ── Test / coverage reports ────────────────────────────────────────────────────
+# Generated locally by docker-compose.test.yml runs
+failsafe-reports/

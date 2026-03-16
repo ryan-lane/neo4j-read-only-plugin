@@ -1,0 +1,37 @@
+services:
+
+  # ── Neo4j with the plugin baked in ───────────────────────────────────────────
+  # Built from the main multi-stage Dockerfile, which compiles the plugin and
+  # drops the JAR into /var/lib/neo4j/plugins/ automatically.
+  neo4j-test:
+    # Explicit image tag so 'docker compose run --no-build' (used by CI) can
+    # find the image pre-built by docker/build-push-action without rebuilding.
+    image: neo4j-read-only-plugin-neo4j-test:latest
+    build:
+      context: .
+    environment:
+      NEO4J_AUTH: neo4j/changeme
+      NEO4J_dbms_security_procedures_unrestricted: "*"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ── Integration test runner ───────────────────────────────────────────────────
+  # Waits for neo4j-test to become healthy, then runs all *IT test classes.
+  # NEO4J_BOLT_URL tells ContainerSetup to skip Testcontainers and connect here.
+  test-runner:
+    image: neo4j-read-only-plugin-test-runner:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.testrunner
+    depends_on:
+      neo4j-test:
+        condition: service_healthy
+    environment:
+      NEO4J_BOLT_URL: bolt://neo4j-test:7687
+      NEO4J_ADMIN_PASSWORD: changeme
+    # Exit code of this container is the test result:
+    #   0  → all tests passed
+    #   non-zero → at least one test failed

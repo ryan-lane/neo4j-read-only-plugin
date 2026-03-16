@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# One run per PR at a time; newer pushes to the same branch cancel the old run.
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Docker Buildx with GHA layer cache ───────────────────────────────
+      # The buildx driver supports the 'type=gha' cache backend natively,
+      # so repeated runs reuse Maven-dependency and base-image layers.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build neo4j-test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          # Tag must match what docker-compose.test.yml expects.
+          # Compose derives the image name from <project>-<service>;
+          # the project name defaults to the directory name.
+          tags: neo4j-read-only-plugin-neo4j-test:latest
+          cache-from: type=gha,scope=neo4j-test
+          cache-to:   type=gha,scope=neo4j-test,mode=max
+
+      - name: Build test-runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.testrunner
+          push: false
+          load: true
+          tags: neo4j-read-only-plugin-test-runner:latest
+          cache-from: type=gha,scope=test-runner
+          cache-to:   type=gha,scope=test-runner,mode=max
+
+      # ── Run the test suite ───────────────────────────────────────────────
+      # Bind-mount a host directory so the failsafe XML reports survive
+      # the container teardown and can be uploaded as a CI artifact.
+      - name: Run integration tests
+        run: |
+          mkdir -p failsafe-reports
+          docker compose -f docker-compose.test.yml run \
+            -v "$(pwd)/failsafe-reports:/build/target/failsafe-reports" \
+            --rm test-runner
+
+      # ── Publish test results ─────────────────────────────────────────────
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Integration tests
+          path: failsafe-reports/**/*.xml
+          reporter: java-junit
+          fail-on-error: false   # already reflected in the run step exit code
+
+      # ── Upload raw reports as a downloadable artifact ────────────────────
+      - name: Upload failsafe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failsafe-reports
+          path: failsafe-reports/
+          if-no-files-found: warn
+
+      # ── Always clean up networks and volumes ─────────────────────────────
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v --remove-orphans

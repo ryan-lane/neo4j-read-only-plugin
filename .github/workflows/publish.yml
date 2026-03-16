@@ -1,0 +1,115 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+
+# Only one publish run at a time; do NOT cancel in-progress publishes.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. Run the full test suite (same Docker Compose setup as CI) ──────────
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build neo4j-test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: neo4j-read-only-plugin-neo4j-test:latest
+          cache-from: type=gha,scope=neo4j-test
+          cache-to:   type=gha,scope=neo4j-test,mode=max
+
+      - name: Build test-runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.testrunner
+          push: false
+          load: true
+          tags: neo4j-read-only-plugin-test-runner:latest
+          cache-from: type=gha,scope=test-runner
+          cache-to:   type=gha,scope=test-runner,mode=max
+
+      - name: Run integration tests
+        run: |
+          mkdir -p failsafe-reports
+          docker compose -f docker-compose.test.yml run \
+            -v "$(pwd)/failsafe-reports:/build/target/failsafe-reports" \
+            --rm test-runner
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Integration tests (publish branch)
+          path: failsafe-reports/**/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Upload failsafe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failsafe-reports-publish
+          path: failsafe-reports/
+          if-no-files-found: warn
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v --remove-orphans
+
+  # ── 2. Publish JARs to GitHub Packages ───────────────────────────────────
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    needs: test          # only publish if all tests pass
+
+    permissions:
+      contents: read
+      packages: write    # required to push to GitHub Packages
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Set up Java 17 and configure ~/.m2/settings.xml with the GitHub
+      # Packages server entry.  actions/setup-java generates the settings
+      # automatically; the credentials are read from the env vars below.
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+          server-id: github              # must match <id> in distributionManagement
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+
+      # Build and deploy both JARs:
+      #   - neo4j-read-only-plugin-<version>.jar          (thin, no deps)
+      #   - neo4j-read-only-plugin-<version>-plugin.jar   (shaded, deploy this to Neo4j)
+      #
+      # -Dgithub.repository is interpolated into the distributionManagement URL
+      # in pom.xml so this workflow works for any fork without editing pom.xml.
+      - name: Deploy to GitHub Packages
+        run: |
+          mvn --no-transfer-progress deploy \
+            -DskipTests \
+            -Dgithub.repository=${{ github.repository }}
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

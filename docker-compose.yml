@@ -1,0 +1,78 @@
+services:
+
+  # ── Builder ─────────────────────────────────────────────────────────────────
+  # Compiles the plugin JAR and places it in the shared `plugins` volume.
+  # Run once with:  docker compose run --rm plugin-builder
+  plugin-builder:
+    build:
+      context: .
+      target: builder          # only the Maven stage
+    volumes:
+      - plugins:/build/target  # expose the compiled JARs
+    profiles:
+      - build                  # only starts when explicitly requested
+
+  # ── Neo4j ───────────────────────────────────────────────────────────────────
+  neo4j:
+    image: neo4j:5.20.0
+    ports:
+      - "7474:7474"   # HTTP browser
+      - "7687:7687"   # Bolt
+    environment:
+      # --- Auth ---
+      # Initial password for the `neo4j` built-in user.
+      NEO4J_AUTH: neo4j/changeme
+
+      # --- Plugin security ---
+      # Neo4j 5.x requires explicitly listing which extension classes (or
+      # packages) are allowed to load.  Using the wildcard below permits every
+      # class on the plugins classpath; tighten this in production.
+      NEO4J_dbms_security_procedures_unrestricted: "*"
+      NEO4J_dbms_security_allow__csv__import__from__file__urls: "true"
+
+      # Permit our ExtensionFactory to be loaded by the kernel:
+      NEO4J_dbms_security_procedures_allowlist: "com.example.neo4j.*"
+
+      # --- Extra Java options (optional) ---
+      # NEO4J_server_jvm_additional: "-Xss2m"
+
+    volumes:
+      # Plugin JAR built by plugin-builder (or by `mvn package` on the host)
+      - plugins:/var/lib/neo4j/plugins
+      # Persistent data
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── All-in-one convenience service ──────────────────────────────────────────
+  # Builds the plugin AND starts Neo4j in one step:
+  #   docker compose up neo4j-with-plugin
+  neo4j-with-plugin:
+    build:
+      context: .               # builds the full multi-stage Dockerfile
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/changeme
+      NEO4J_dbms_security_procedures_unrestricted: "*"
+      NEO4J_dbms_security_procedures_allowlist: "com.example.neo4j.*"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - all-in-one
+
+volumes:
+  plugins:
+  neo4j-data:
+  neo4j-logs:

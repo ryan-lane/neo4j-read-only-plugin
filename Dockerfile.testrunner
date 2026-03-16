@@ -1,0 +1,21 @@
+# ── Test runner image ─────────────────────────────────────────────────────────
+# Builds the plugin, then waits for an external Neo4j to be healthy before
+# running the integration tests.  Intended for use with docker-compose.test.yml.
+#
+# The plugin JAR is NOT needed here (Neo4j already has it baked in via the main
+# Dockerfile). We pass -Dplugin.jar.path=/dev/null to skip Testcontainers; the
+# tests connect to the Neo4j service via the NEO4J_BOLT_URL env variable instead.
+FROM maven:3.9-eclipse-temurin-17
+
+WORKDIR /build
+
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+COPY src/ src/
+RUN mvn package -DskipTests -q
+
+CMD ["mvn", \
+     "failsafe:integration-test", \
+     "failsafe:verify", \
+     "-Dplugin.jar.path=/dev/null"]
