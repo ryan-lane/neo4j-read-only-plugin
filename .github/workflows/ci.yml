@@ -65,7 +65,7 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: Integration tests
-          path: failsafe-reports/**/*.xml
+          path: failsafe-reports/**/TEST-*.xml
           reporter: java-junit
           fail-on-error: false   # already reflected in the run step exit code
 
