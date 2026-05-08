@@ -83,7 +83,7 @@ public final class ContainerSetup {
                     "agent.jar.path",
                     "target/neo4j-read-only-plugin-1.0.0-SNAPSHOT-agent.jar");
 
-            Neo4jContainer<?> c = new Neo4jContainer<>("neo4j:5.20.0")
+            Neo4jContainer<?> c = new Neo4jContainer<>("neo4j:5.26.0")
                     .withAdminPassword(ADMIN_PASSWORD)
                     .withCopyToContainer(
                             MountableFile.forHostPath(Paths.get(pluginJar), 0644),

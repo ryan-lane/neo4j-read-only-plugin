@@ -71,7 +71,7 @@ The `-plugin` classifier JAR (produced by `maven-shade-plugin`) is what gets dep
 
 ## Neo4j API Notes
 
-These APIs required careful inspection of the actual Neo4j 5.20.0 JARs — do not assume from docs:
+These APIs required careful inspection of the actual Neo4j 5.26.0 JARs — do not assume from docs:
 - Database lifecycle listener: `org.neo4j.graphdb.event.DatabaseEventListener` (not `DatabaseManagementServiceListener`)
 - All 5 methods are abstract with no defaults: `databaseStart`, `databaseShutdown`, `databaseDrop`, `databasePanic`, `databaseCreate` — there is no `databaseStop`
 - `TransactionData.getRelationships()` returns `ResourceIterable<Relationship>`, not plain `Iterable`
@@ -106,7 +106,7 @@ The agent intercepts `org.neo4j.cypher.internal.procs.UpdatingSystemCommandExecu
 
 2. Even after fixing (1) by throwing anyway, the exception is swallowed. `checkActions` is called inside `InternalExecutionResult.consumeAll()`, which is wrapped by a `catch (java.lang.Throwable)` handler in `UpdatingSystemCommandExecutionPlanBase.$anonfun$runSpecific$2` (exception table entry: from=71, to=78, target=81, type=`java.lang.Throwable`). The handler does `pop; goto 85` — silently discarding the exception. By the time `checkActions` runs, the `CREATE USER` subquery has already executed; we were only blocking the result drain.
 
-The confirmed exception-swallowing catch block (Neo4j 5.20.0, `UpdatingSystemCommandExecutionPlanBase.class`):
+The confirmed exception-swallowing catch block (originally observed on Neo4j 5.20.0 and rechecked during the 5.26.0 upgrade, `UpdatingSystemCommandExecutionPlanBase.class`):
 ```
 // bytecode offsets in $anonfun$runSpecific$2:
 71: aload 9
@@ -155,7 +155,7 @@ Add `System.err.println("[GUARD] ...")` traces to `AdminCommandAdvice.onEnter` t
 3. **What is the username?** — Print the resolved `username` to confirm the correct method is being called.
 4. **Is the exception reaching the client?** — If GUARD logs show BLOCKING but tests still fail with "Expecting code to raise a throwable", the exception is being swallowed somewhere. The interception point is too deep in the call stack; move it higher.
 
-#### Key API facts verified against Neo4j 5.20.0 JARs
+#### Key API facts verified against Neo4j 5.26.0 JARs
 
 - `SecurityContext` is a **concrete class** extending `LoginContext` (not an interface). Walk the **superclass chain** (not `getInterfaces()`) to check for it.
 - `AuthSubject.executingUser()` is the correct method — there is no `username()` or `getUsername()` on `AuthSubject` in Neo4j 5.x.
