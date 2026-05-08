@@ -22,13 +22,12 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
  *   <li>All others – blocked with {@code AuthorizationViolationException}.</li>
  * </ul>
  *
- * <h2>Interception point (verified against neo4j-cypher-5.20.0.jar)</h2>
+ * <h2>Interception point (verified against neo4j-cypher-5.26.0.jar)</h2>
  * <p>The agent targets
- * {@code CommunityAdministrationCommandRuntime.checkActions(Seq&lt;DbmsAction&gt;, SecurityContext)}.
- * This method is the authorisation gate called by every write admin command
- * ({@code AuthorizationAndPredicateExecutionPlan}); read-only admin commands such as
- * {@code SHOW USERS} produce a {@code SystemCommandExecutionPlan} that never calls
- * {@code checkActions}, so they pass through untouched.
+ * {@code UpdatingSystemCommandExecutionPlanBase.runSpecific(...)}. This is the outermost
+ * Cypher-level entry point for write administrative commands, and it runs before Neo4j
+ * executes the inner system-update subquery. Read-only admin commands such as
+ * {@code SHOW USERS} use a different execution plan and pass through untouched.
  */
 public class SystemDatabaseGuardAgent {
 

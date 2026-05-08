@@ -15,7 +15,7 @@
     </description>
 
     <properties>
-        <neo4j.version>5.20.0</neo4j.version>
+        <neo4j.version>5.26.0</neo4j.version>
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
